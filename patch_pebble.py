@@ -4,36 +4,17 @@ for f in glob.glob(os.path.expanduser("~/.local/share/uv/tools/**/*.py"), recurs
     if "manager.py" not in f or "/sdk/" not in f:
         continue
 
-    lines = open(f).readlines()
-    new_lines = []
-    changed = False
+    txt = open(f).read()
+    
+    # Fix 1: Progress bar bug
+    old1 = "bar.update(bar.currval + len(content))"
+    new1 = "try: bar.update(bar.currval + len(content))\n            except: pass"
+    
+    # Fix 2: setuptools bug (pypng)
+    old2 = 'subprocess.check_call([os.path.join(venv_path, "bin", "python"), "-m", "pip", "install", "-r",'
+    new2 = 'subprocess.check_call([os.path.join(venv_path, "bin", "python"), "-m", "pip", "install", "setuptools<58"])\n        subprocess.check_call([os.path.join(venv_path, "bin", "python"), "-m", "pip", "install", "-r",'
 
-    for line in lines:
-        # Fix 1: wrap progressbar update in try/except
-        if "bar.update(bar.currval + len(content))" in line and "try" not in line:
-            indent = len(line) - len(line.lstrip())
-            ind = " " * indent
-            new_lines.append(ind + "try:\n")
-            new_lines.append(ind + "    " + line.lstrip())
-            new_lines.append(ind + "except (ValueError, Exception):\n")
-            new_lines.append(ind + "    pass\n")
-            changed = True
-            continue
-
-        # Fix 2: insert setuptools<58 before requirements.txt pip install
-        if '"pip", "install", "-r",' in line and "setuptools" not in line and "check_call" in line:
-            indent = len(line) - len(line.lstrip())
-            ind = " " * indent
-            start = line.index("subprocess.check_call([") + len("subprocess.check_call([")
-            py_end = line.index('", "-m"')
-            py_expr = line[start:py_end]
-            new_lines.append(f'{ind}subprocess.check_call([{py_expr}, "-m", "pip", "install", "setuptools<58"])\n')
-            changed = True
-
-        new_lines.append(line)
-
-    if changed:
-        open(f, "w").writelines(new_lines)
+    if old1 in txt or old2 in txt:
+        txt = txt.replace(old1, new1).replace(old2, new2)
+        open(f, "w").write(txt)
         print("Patched:", f)
-    else:
-        print("No changes:", f)
