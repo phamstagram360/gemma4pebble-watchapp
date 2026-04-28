@@ -1,24 +1,39 @@
-import glob, os, re
-
-def patch_file(f, old, new):
-    txt = open(f).read()
-    if old in txt:
-        open(f, "w").write(txt.replace(old, new))
-        print("Patched:", f, "->", repr(old[:40]))
-        return True
-    print("No match:", repr(old[:40]), "in", f)
-    return False
+import glob, os
 
 for f in glob.glob(os.path.expanduser("~/.local/share/uv/tools/**/*.py"), recursive=True):
     if "manager.py" not in f or "/sdk/" not in f:
         continue
 
-    # Fix 1: progressbar ValueError
-    patch_file(f,
-        "bar.update(bar.currval + len(content))",
-        "try:\n                bar.update(bar.currval + len(content))\n            except (ValueError, Exception):\n                pass")
+    lines = open(f).readlines()
+    new_lines = []
+    changed = False
 
-    # Fix 2: insert setuptools<58 install before requirements.txt install
-    patch_file(f,
-        'subprocess.check_call([os.path.join(venv_path, "bin", "python"), "-m", "pip", "install", "-r",',
-        'subprocess.check_call([os.path.join(venv_path, "bin", "python"), "-m", "pip", "install", "setuptools<58"])\n        subprocess.check_call([os.path.join(venv_path, "bin", "python"), "-m", "pip", "install", "-r",')
+    for line in lines:
+        # Fix 1: wrap progressbar update in try/except
+        if "bar.update(bar.currval + len(content))" in line and "try" not in line:
+            indent = len(line) - len(line.lstrip())
+            ind = " " * indent
+            new_lines.append(ind + "try:\n")
+            new_lines.append(ind + "    " + line.lstrip())
+            new_lines.append(ind + "except (ValueError, Exception):\n")
+            new_lines.append(ind + "    pass\n")
+            changed = True
+            continue
+
+        # Fix 2: insert setuptools<58 before requirements.txt pip install
+        if '"pip", "install", "-r",' in line and "setuptools" not in line and "check_call" in line:
+            indent = len(line) - len(line.lstrip())
+            ind = " " * indent
+            start = line.index("subprocess.check_call([") + len("subprocess.check_call([")
+            py_end = line.index('", "-m"')
+            py_expr = line[start:py_end]
+            new_lines.append(f'{ind}subprocess.check_call([{py_expr}, "-m", "pip", "install", "setuptools<58"])\n')
+            changed = True
+
+        new_lines.append(line)
+
+    if changed:
+        open(f, "w").writelines(new_lines)
+        print("Patched:", f)
+    else:
+        print("No changes:", f)
