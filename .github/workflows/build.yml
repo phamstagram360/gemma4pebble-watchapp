@@ -6,20 +6,24 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
-    container:
-      image: python:2.7.18-buster
+    runs-on: ubuntu-20.04
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y \
+            python2.7 python2.7-dev \
+            libsdl1.2debian libfdt1 libpixman-1-0 \
+            libfreetype6 libx11-6 rlwrap wget
 
-      - name: Install dependencies
-        run: apt-get update -qq && apt-get install -qq -y git zip wget python-pip python2.7-dev libsdl1.2debian libfdt1 libpixman-1-0 nodejs npm libfreetype6 libx11-6 rlwrap
-
-      - name: Install virtualenv
-        run: pip install virtualenv
+      - name: Install pip for Python 2
+        run: |
+          curl -s https://bootstrap.pypa.io/pip/2.7/get-pip.py -o get-pip.py
+          sudo python2.7 get-pip.py
+          sudo python2.7 -m pip install virtualenv
 
       - name: Download Pebble SDK
         run: |
@@ -27,14 +31,16 @@ jobs:
           wget -q -O - https://developer.rebble.io/s3.amazonaws.com/assets.getpebble.com/pebble-tool/pebble-sdk-4.5-linux64.tar.bz2 \
             | tar xj --strip-components=1 -C ~/sdk
 
-      - name: Install SDK requirements
+      - name: Install SDK Python requirements
         run: |
           cd ~/sdk
-          virtualenv .env
-          bash -c "source .env/bin/activate && pip install -r requirements.txt"
+          virtualenv -p python2.7 .env
+          .env/bin/pip install -r requirements.txt
 
       - name: Download SDK core
-        run: wget -q https://github.com/aveao/PebbleArchive/raw/master/SDKCores/sdk-core-4.3.tar.bz2 -O ~/sdk/sdk-core-4.3.tar.bz2
+        run: |
+          wget -q https://github.com/aveao/PebbleArchive/raw/master/SDKCores/sdk-core-4.3.tar.bz2 \
+            -O ~/sdk/sdk-core-4.3.tar.bz2
 
       - name: Install SDK core
         run: |
@@ -45,12 +51,9 @@ jobs:
       - name: Build
         run: yes | ~/sdk/bin/pebble build
 
-      - name: Rename
-        run: cp build/app.pbw AI-Assistant-for-Pebble.pbw
-
       - name: Upload PBW
         uses: actions/upload-artifact@v4
         with:
           name: AI-Assistant-for-Pebble
-          path: AI-Assistant-for-Pebble.pbw
+          path: build/app.pbw
           retention-days: 90
