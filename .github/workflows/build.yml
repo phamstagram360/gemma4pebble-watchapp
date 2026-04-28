@@ -11,35 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build inside Debian Buster container
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install pebble-tool
+        run: uv tool install pebble-tool --python 3.13
+
+      - name: Install Pebble SDK
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/app" \
-            -w /app \
-            python:2.7.18-buster bash -c "
-              set -e
+          mkdir -p ~/.pebble-sdk
+          touch ~/.pebble-sdk/NO_TRACKING
+          pebble sdk install https://github.com/aveao/PebbleArchive/raw/master/SDKCores/sdk-core-4.3.tar.bz2
 
-              sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list
-              sed -i 's/security.debian.org/archive.debian.org/g' /etc/apt/sources.list
-              sed -i '/buster-updates/d' /etc/apt/sources.list
-              apt-get update -qq
-              apt-get install -qq -y libsdl1.2debian libfdt1 libpixman-1-0 libfreetype6 libx11-6 rlwrap wget
-
-              pip install -q virtualenv
-
-              mkdir -p /tmp/sdk
-              curl -fL 'https://developer.rebble.io/s3.amazonaws.com/assets.getpebble.com/pebble-tool/pebble-sdk-4.5-linux64.tar.bz2' \
-                | tar xj --strip-components=1 -C /tmp/sdk
-
-              cd /tmp/sdk && virtualenv .env && .env/bin/pip install -q -r requirements.txt
-
-              wget -q 'https://github.com/aveao/PebbleArchive/raw/master/SDKCores/sdk-core-4.3.tar.bz2' \
-                -O /tmp/sdk-core.tar.bz2
-              mkdir -p /root/.pebble-sdk && touch /root/.pebble-sdk/NO_TRACKING
-              /tmp/sdk/bin/pebble sdk install /tmp/sdk-core.tar.bz2
-
-              cd /app && yes | /tmp/sdk/bin/pebble build
-            "
+      - name: Build
+        run: yes | pebble build
 
       - name: Upload PBW
         uses: actions/upload-artifact@v4
