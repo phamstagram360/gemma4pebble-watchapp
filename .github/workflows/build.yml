@@ -15,7 +15,7 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Install pebble-tool
-        run: uv tool install pebble-tool --python 3.13
+        run: uv tool install pebble-tool --python 3.11
 
       - name: Fix progressbar bug
         run: python3 patch_pebble.py
@@ -35,3 +35,4 @@ jobs:
           name: AI-Assistant-for-Pebble
           path: build/app.pbw
           retention-days: 90
+        
