@@ -18,18 +18,20 @@ jobs:
         run: uv tool install pebble-tool --python 3.13
 
       - name: Fix progressbar bug
+        run: python3 patch_pebble.py
+
+      - name: Install Pebble SDK
         run: |
-          MANAGER=$(find ~/.local/share/uv/tools -name "manager.py" -path "*/sdk/*" 2>/dev/null | head -1)
-          echo "Patching: $MANAGER"
-          python3 - <<'EOF'
-import sys, glob, os
-files = glob.glob(os.path.expanduser("~/.local/share/uv/tools/**/*.py"), recursive=True)
-for f in files:
-    if "manager.py" in f and "/sdk/" in f:
-        txt = open(f).read()
-        old = "bar.update(bar.currval + len(content))"
-        new = ("try:\n"
-               "                bar.update(bar.currval + len(content))\n"
-               "            except (ValueError, Exception):\n"
-               "                pass")
-        if
+          mkdir -p ~/.pebble-sdk
+          touch ~/.pebble-sdk/NO_TRACKING
+          pebble sdk install https://github.com/aveao/PebbleArchive/raw/master/SDKCores/sdk-core-4.3.tar.bz2
+
+      - name: Build
+        run: yes | pebble build
+
+      - name: Upload PBW
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Assistant-for-Pebble
+          path: build/app.pbw
+          retention-days: 90
