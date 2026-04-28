@@ -13,9 +13,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fix Debian Buster repos (EOL)
+        run: |
+          sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list
+          sed -i 's/security.debian.org/archive.debian.org/g' /etc/apt/sources.list
+          sed -i '/buster-updates/d' /etc/apt/sources.list
+          apt-get update -qq
+
       - name: Install system dependencies
         run: |
-          apt-get update -qq
           apt-get install -qq -y \
             libsdl1.2debian libfdt1 libpixman-1-0 \
             libfreetype6 libx11-6 rlwrap wget
