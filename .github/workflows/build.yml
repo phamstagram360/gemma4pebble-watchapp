@@ -7,53 +7,39 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: python:2.7.18-buster
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fix Debian Buster repos (EOL)
+      - name: Build inside Debian Buster container
         run: |
-          sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list
-          sed -i 's/security.debian.org/archive.debian.org/g' /etc/apt/sources.list
-          sed -i '/buster-updates/d' /etc/apt/sources.list
-          apt-get update -qq
+          docker run --rm \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            python:2.7.18-buster bash -c "
+              set -e
 
-      - name: Install system dependencies
-        run: |
-          apt-get install -qq -y \
-            libsdl1.2debian libfdt1 libpixman-1-0 \
-            libfreetype6 libx11-6 rlwrap wget
+              sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list
+              sed -i 's/security.debian.org/archive.debian.org/g' /etc/apt/sources.list
+              sed -i '/buster-updates/d' /etc/apt/sources.list
+              apt-get update -qq
+              apt-get install -qq -y libsdl1.2debian libfdt1 libpixman-1-0 libfreetype6 libx11-6 rlwrap wget
 
-      - name: Install virtualenv
-        run: pip install virtualenv
+              pip install -q virtualenv
 
-      - name: Download Pebble SDK
-        run: |
-          mkdir -p ~/sdk
-          wget -q -O - https://developer.rebble.io/s3.amazonaws.com/assets.getpebble.com/pebble-tool/pebble-sdk-4.5-linux64.tar.bz2 \
-            | tar xj --strip-components=1 -C ~/sdk
+              mkdir -p /tmp/sdk
+              curl -fL 'https://developer.rebble.io/s3.amazonaws.com/assets.getpebble.com/pebble-tool/pebble-sdk-4.5-linux64.tar.bz2' \
+                | tar xj --strip-components=1 -C /tmp/sdk
 
-      - name: Install SDK requirements
-        run: |
-          cd ~/sdk
-          virtualenv .env
-          .env/bin/pip install -r requirements.txt
+              cd /tmp/sdk && virtualenv .env && .env/bin/pip install -q -r requirements.txt
 
-      - name: Download SDK core
-        run: |
-          wget -q https://github.com/aveao/PebbleArchive/raw/master/SDKCores/sdk-core-4.3.tar.bz2 \
-            -O ~/sdk/sdk-core-4.3.tar.bz2
+              wget -q 'https://github.com/aveao/PebbleArchive/raw/master/SDKCores/sdk-core-4.3.tar.bz2' \
+                -O /tmp/sdk-core.tar.bz2
+              mkdir -p /root/.pebble-sdk && touch /root/.pebble-sdk/NO_TRACKING
+              /tmp/sdk/bin/pebble sdk install /tmp/sdk-core.tar.bz2
 
-      - name: Install SDK core
-        run: |
-          mkdir -p ~/.pebble-sdk
-          touch ~/.pebble-sdk/NO_TRACKING
-          ~/sdk/bin/pebble sdk install ~/sdk/sdk-core-4.3.tar.bz2
-
-      - name: Build
-        run: yes | ~/sdk/bin/pebble build
+              cd /app && yes | /tmp/sdk/bin/pebble build
+            "
 
       - name: Upload PBW
         uses: actions/upload-artifact@v4
